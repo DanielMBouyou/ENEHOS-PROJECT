@@ -1,0 +1,22 @@
+# VS Code
+.vscode/ipch/
+*.code-workspace
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Arduino
+**/build/
+**/*.elf
+**/*.hex
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "platformio.platformio-ide",
+    "ms-vscode.cpptools",
+    "ms-vscode.vscode-serial-monitor",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig"
+  ]
+}
