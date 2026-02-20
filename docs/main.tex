@@ -1,0 +1,1198 @@
+\documentclass[11pt,a4paper]{article}
+
+% =========================
+% ENEHOS — Test & HAHIL Doc
+% =========================
+
+% --------- Encodage / Langue ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+
+% --------- Mise en page ----------
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{microtype}
+\usepackage{parskip} % évite les gros pavés + spacing propre
+
+% --------- Liens / PDF ----------
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}
+
+% --------- Images ----------
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption} % photos côte à côte
+\usepackage{caption}
+
+% --------- Tableaux ----------
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+
+% --------- Couleur (minimal) ----------
+\usepackage{xcolor}
+
+% --------- Schémas ----------
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric,shapes.misc}
+
+% (Optionnel si tu veux des schémas de circuits)
+\usepackage[european]{circuitikz}
+
+% --------- Blocs visuels (peu de texte, plus de structure) ----------
+\usepackage[most]{tcolorbox}
+\tcbset{
+  colback=white,
+  colframe=black!35,
+  boxrule=0.6pt,
+  arc=2mm,
+  left=2mm,right=2mm,top=1mm,bottom=1mm
+}
+\newtcolorbox{boxnote}{title=\textbf{Note},colframe=black!35}
+\newtcolorbox{boxtest}{title=\textbf{Test},colframe=black!35}
+\newtcolorbox{boxcheck}{title=\textbf{Checklist},colframe=black!35}
+
+% --------- Listes compactes ----------
+\usepackage{enumitem}
+\setlist[itemize]{nosep,leftmargin=*,topsep=2pt}
+\setlist[enumerate]{nosep,leftmargin=*,topsep=2pt}
+
+% --------- Commandes utiles ----------
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\imgpath}{images} % dossier d'images Overleaf
+\newcommand{\docversion}{v0.3}
+
+% --- Couleurs légères ---
+\definecolor{ENEHOSblue}{HTML}{1F4E79}
+\definecolor{ENEHOSgray}{HTML}{F5F7FA}
+\definecolor{ENEHOSline}{HTML}{B8C2CC}
+\definecolor{ENEHOScodebg}{HTML}{0B1020}
+\definecolor{ENEHOScodefg}{HTML}{E6EDF3}
+
+% --- Style TikZ (boîtes + flèches uniformes) ---
+\tikzset{
+  enebox/.style={
+    draw=ENEHOSline,
+    fill=ENEHOSgray,
+    rounded corners=3mm,
+    minimum width=52mm,
+    minimum height=14mm,
+    align=center,
+    very thick
+  },
+  enearrow/.style={-Latex, line width=0.9pt, draw=ENEHOSblue},
+  enearrow2/.style={Latex-Latex, line width=0.9pt, draw=ENEHOSblue}
+}
+
+% --- Code lisible (fond clair) ---
+\usepackage{listings}
+
+\definecolor{codebg}{HTML}{F6F8FA}
+\definecolor{codeframe}{HTML}{D0D7DE}
+\definecolor{codetext}{HTML}{0B0F14}
+\definecolor{codekw}{HTML}{0B61A4}
+\definecolor{codecom}{HTML}{2F6F3E}
+\definecolor{codestr}{HTML}{8A2BE2}
+
+\lstdefinestyle{enehos}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small\color{codetext},
+  keywordstyle=\bfseries\color{codekw},
+  commentstyle=\itshape\color{codecom},
+  stringstyle=\color{codestr},
+  numbers=left,
+  numberstyle=\tiny\color{black!55},
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{codeframe},
+  frameround=ffff,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=2
+}
+
+% --------- Titre ----------
+\title{\textbf{Projet OZEN}\\\large Plan de tests matériels et HAHIL}
+\author{Henry D}
+\date{2026-02-16 --- \docversion}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{But du document}
+\begin{boxnote}
+Ce document décrit le \textbf{setup minimal} et la \textbf{procédure de test} :
+\begin{itemize}
+  \item \textbf{par composant} (XIAO, GNSS L86, BNO085 IMU+magneto+fusion, antenne),
+  \item \textbf{par liaison} (UART, I\textsuperscript{2}C, BLE),
+  \item en mode \textbf{HAHIL} : Human--AI--Hardware-in-the-Loop.
+\end{itemize}
+\end{boxnote}
+
+% =========================================================
+\section{Vue d'ensemble du système ENEHOS (architecture cible)}
+\subsection{Architecture fonctionnelle cible}
+
+\begin{boxnote}
+L'architecture cible ENEHOS est la suivante :
+\begin{itemize}
+  \item \textbf{1 boîtier électronique unique} à la nuque : XIAO nRF52840 + GNSS L86 + BNO085 (IMU 9 axes + magnétomètre + fusion),
+  \item \textbf{1 boîtier antenne} au sommet du support,
+  \item \textbf{1 boîtier piles AAA},
+  \item \textbf{2 boîtiers vibreurs} (gauche / droite).
+\end{itemize}
+Le boîtier électronique est placé à la nuque pour l'éloigner des moteurs et limiter les perturbations magnétiques.
+\end{boxnote}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  x=1cm,y=1cm,
+  scale=0.90,
+  transform shape,
+  font=\footnotesize,
+  outer/.style={draw, rounded corners=2mm, align=center, minimum width=3.4cm, minimum height=1.1cm},
+  inner/.style={draw, rounded corners=1.5mm, align=center, minimum width=2.9cm, minimum height=0.9cm, fill=black!3},
+  flow/.style={-Latex, thick},
+  flow2/.style={Latex-Latex, thick},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+\node[outer, minimum width=10.4cm, minimum height=5.8cm] (elec) at (0,0) {};
+\node[font=\bfseries] at ($(elec.north)+(0,-0.35)$) {Boîtier électronique (nuque)};
+\node[inner] (xiao) at (0.0,1.15) {XIAO nRF52840};
+\node[inner] (l86) at (-3.1,-1.05) {GNSS L86};
+\node[inner, minimum width=4.1cm] (bno) at (2.8,-1.05) {BNO085\\(IMU 9 axes + magnétomètre + fusion)};
+
+\node[outer] (smart) at (9.3,0.85) {Smartphone\\(App ENEHOS)};
+\node[outer] (ant) at (-4.3,4.3) {Boîtier antenne\\(sommet support)};
+\node[outer] (bat) at (-6.3,-5.3) {Boîtier piles AAA};
+\node[outer, minimum width=3.0cm] (drv) at (6.2,-5.3) {Driver\\vibreurs};
+\node[outer] (vibG) at (4.3,-8.0) {Vibreur gauche};
+\node[outer] (vibD) at (8.1,-8.0) {Vibreur droit};
+
+% BLE bidirectionnel (zone dédiée, sans croisement)
+\draw[flow2] ($(elec.east)+(0,0.25)$) -- node[lbl, above]{BLE bidirectionnel} ($(smart.west)+(0,0.25)$);
+\node[lbl] at ($(elec.east)!0.5!(smart.west)+(0,0.62)$) {Navette MESURES};
+\node[lbl] at ($(elec.east)!0.5!(smart.west)+(0,-0.12)$) {Navette VIBRATIONS};
+
+% Liaisons internes
+\draw[flow2] (l86.north east) -- node[lbl, above, sloped]{UART TX/RX} (xiao.south west);
+\draw[flow] (l86.west) -- ++(-0.9,0) |- node[lbl, left, pos=0.25]{PPS (1 Hz)} (xiao.west);
+\draw[flow2] (bno.north west) -- node[lbl, above, sloped]{I\textsuperscript{2}C (+ INT/RST)} (xiao.south east);
+
+% Liaisons externes
+\draw[flow] (ant.south) -- node[lbl, left]{RF coax} (l86.north);
+\draw[flow] (bat.east) -- node[lbl, above]{Alimentation} ($(elec.south)+(-2.6,0)$);
+\draw[flow] ($(elec.south east)+(0.1,0.2)$) -- node[lbl, above]{GPIO/PWM} (drv.north west);
+\draw[flow] (drv.south west) -- node[lbl, above, sloped]{canal G} (vibG.north);
+\draw[flow] (drv.south east) -- node[lbl, above, sloped]{canal D} (vibD.north);
+\end{tikzpicture}
+\caption{Architecture cible ENEHOS : un seul boîtier électronique, un lien BLE bidirectionnel, deux navettes applicatives.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Fichier navette : structure, horodatage, périodicité}
+\begin{boxnote}
+Le point logiciel principal à développer est la gestion du \textbf{fichier navette} :
+format de payload, stratégie d'horodatage, périodicité d'envoi et robustesse.
+\end{boxnote}
+
+\paragraph{\textbf{Contenu minimal des navettes}}
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.8cm}
+                                >{\raggedright\arraybackslash}p{3.2cm}
+                                X}
+\toprule
+\textbf{Navette} & \textbf{Sens BLE} & \textbf{Contenu} \\
+\midrule
+Navette MESURES & boîtier \(\rightarrow\) smartphone & Données GNSS (fix, latitude, longitude, vitesse, qualité) + orientation issue du BNO085 + statut système (batterie, erreurs, version). \\
+Navette VIBRATIONS & smartphone \(\rightarrow\) boîtier & Commande gauche/droite, activation oui/non, type/pattern de vibration, durée/intensité éventuelle, identifiant de commande. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Option A : horodater chaque donnée}
+Chaque champ mesure embarque son propre timestamp. Précis et flexible, mais payload plus lourd et parsing plus complexe.
+
+\subsubsection{Option B : horodater le fichier (recommandé pour simplicité)}
+Une entête navette porte un timestamp global, puis les mesures sont interprétées avec un pas d'échantillonnage connu.
+Cette option est plus simple à implémenter côté embarqué et côté application.
+
+\subsubsection{Sens des navettes sur BLE}
+\begin{itemize}
+  \item \textbf{Navette MESURES} : envoyée par le boîtier via characteristic \texttt{Notify}.
+  \item \textbf{Navette VIBRATIONS} : envoyée par le smartphone via characteristic \texttt{Write}.
+  \item Le BLE est le \textbf{transport} ; les navettes sont le \textbf{payload applicatif}.
+  \item Périodicité à fixer selon usage (exemples : 10 Hz ou 20 Hz pour orientation, 1 Hz pour états lents).
+\end{itemize}
+
+\subsection{Photos (à insérer)}
+% Mets tes photos dans Overleaf dans un dossier "images/" puis renomme-les proprement.
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{\imgpath/PHOTO_XIAO_TOP.jpg}
+  \caption{XIAO nRF52840 (vue de haut)}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{\imgpath/PHOTO_L86_TOP.jpg}
+  \caption{GNSS L86 (vue de haut)}
+\end{subfigure}
+
+\vspace{3mm}
+
+\begin{subfigure}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{\imgpath/PHOTO_BNO085_TOP.jpg}
+  \caption{BNO085 (IMU 9 axes + magnétomètre + fusion) (vue de haut)}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{\imgpath/PHOTO_LIAISONS_TOP.jpg}
+  \caption{Liaisons (vue de haut)}
+\end{subfigure}
+\caption{Photos du matériel (remplacer les noms de fichiers par les tiens).}
+\label{fig:photos}
+\end{figure}
+
+% =========================================================
+\section{Matériel de test minimal (banc)}
+\begin{boxcheck}
+\begin{itemize}
+  \item \textbf{Alimentation stabilisée} (mode tension + limitation courant)
+  \item \textbf{Oscilloscope} (2 voies minimum)
+  \item \textbf{PC} + \textbf{VS Code} (PlatformIO + Python)
+  \item Fils Dupont, breadboard, résistances (1k / 4.7k / 10k), capas (100nF / 10µF)
+  \item adaptateur \textbf{USB--UART 3.3V} et/ou analyseur logique
+\end{itemize}
+\end{boxcheck}
+
+% =========================================================
+\section{Setup logiciel (VS Code) — base commune}
+\begin{boxtest}
+\textbf{Objectif :} piloter les tests sans Arduino IDE.
+\begin{itemize}
+  \item \textbf{PlatformIO} : compilation/flash du XIAO
+  \item \textbf{Python} : orchestration, logs, automatisation, rapports
+\end{itemize}
+\end{boxtest}
+
+\subsection{Structure de repo recommandée}
+\begin{verbatim}
+enehos-tests/
+  firmware/        (PlatformIO: test_harness)
+  tests/           (pytest: UART / I2C / BLE)
+  logs/            (CSV, JSON)
+  images/          (photos matériel, captures oscillo)
+  docs/            (Overleaf: ce document)
+\end{verbatim}
+
+% =========================================================
+\section{Principe HAHIL (Human--AI--Hardware-in-the-Loop)}
+% --- Schéma HAHIL (version propre) ---
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=18mm and 22mm,
+  box/.style={
+    draw=black!55,
+    rounded corners=2mm,
+    very thick,
+    fill=black!2, % quasi blanc
+    minimum width=45mm,
+    minimum height=14mm,
+    align=center
+  },
+  arrow/.style={-Latex, thick, draw=black!70},
+  lbl/.style={font=\footnotesize, text=black!80}
+]
+
+% Nœuds (ligne principale)
+\node[box] (human) {Humain\\\footnotesize(actions physiques)};
+\node[box, right=of human] (hw) {Hardware\\\footnotesize(XIAO + capteurs)};
+\node[box, right=of hw] (sw) {Software\\\footnotesize(VS Code + scripts)};
+
+% IA sous Software (aligné)
+\node[box, below=of sw] (ai) {IA\\\footnotesize(diagnostic + score)};
+
+% Flèches principales
+\draw[arrow] (human) -- node[lbl, above]{bouger / brancher / éloigner} (hw);
+\draw[arrow] (hw) -- node[lbl, above]{mesures \& logs} (sw);
+
+% Descente vers IA
+\draw[arrow] (sw) -- node[lbl, right]{résumé / anomalies} (ai);
+
+% Retour IA -> Humain (propre, en bas)
+\draw[arrow] (ai.west) .. controls +(left:30mm) and +(down:12mm) .. 
+  node[lbl, below]{recommandations d’actions} (human.south);
+
+\end{tikzpicture}
+\caption{Boucle HAHIL : l’humain agit, le hardware mesure, le software collecte, l’IA diagnostique et recommande.}
+\label{fig:hahil}
+\end{figure}
+
+\begin{boxnote}
+\textbf{Idée clé :} l’IA ne remplace pas les mesures. Elle \textbf{classe} et \textbf{explique} rapidement : \emph{câblage}, \emph{alimentation}, \emph{bus bloqué}, \emph{débit instable}, etc.
+\end{boxnote}
+
+% =========================================================
+% =========================================================
+\section{Tests}
+\label{sec:tests}
+
+\subsection{Tests par composant}
+\label{sec:tests-par-composant}
+
+\begin{boxnote}
+Cette sous-section décrit une stratégie de test \textbf{composant par composant} : chaque module est validé \textbf{isolément} avant toute intégration.
+Le principe est simple :
+\begin{itemize}
+  \item un seul élément actif à la fois (pour éviter les faux diagnostics),
+  \item des \textbf{preuves mesurables} (oscilloscope, logs série/BLE, mesures d’alimentation),
+  \item un résultat clair : \textbf{PASS/FAIL}, accompagné des fichiers de preuve (captures + logs).
+\end{itemize}
+\end{boxnote}
+
+\begin{boxnote}
+Pour chaque composant (XIAO, GNSS L86, BNO085 IMU+magneto+fusion, antenne), on conservera systématiquement :
+\begin{itemize}
+  \item la configuration matérielle utilisée (câblage + tension d’alim),
+  \item la configuration logicielle (firmware / scripts VS Code),
+  \item les mesures et calculs réalisés,
+  \item les critères d’acceptation (seuils) et les anomalies observées.
+\end{itemize}
+\end{boxnote}
+
+\subsubsection{\Large XIAO nRF52840}
+\label{sec:test-xiao}
+
+\begin{tcolorbox}[colback=white,colframe=black!25,boxrule=0.6pt]
+\textbf{But (validation carte seule).} \quad On vérifie :
+\begin{itemize}
+  \item USB (console série) ;
+  \item une sortie GPIO (niveau logique + fréquence mesurée au scope) ;
+  \item (option) alimentation externe 3.3 V + limite de courant.
+\end{itemize}
+\end{tcolorbox}
+
+\vspace{2mm}
+
+\paragraph{\textbf{Matériel minimal}}
+\begin{itemize}
+  \item XIAO nRF52840 + câble USB-C
+  \item Oscilloscope (CH1) + sonde
+  \item (Option) alimentation stabilisée 3.3 V
+  \item PC + VS Code + PlatformIO
+\end{itemize}
+
+\paragraph{\textbf{VS Code / PlatformIO}}
+\begin{itemize}
+  \item Extensions : \textbf{PlatformIO} + \textbf{Python}
+\end{itemize}
+
+\begin{lstlisting}[style=enehos]
+pio project init --board seeed_xiao_nrf52840
+pio run -t upload
+\end{lstlisting}
+
+\paragraph{\textbf{Schéma A — Test GPIO au scope (centré, flèche OK)}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick}
+]
+\node[enebox] (xiao) {\textbf{XIAO nRF52840}};
+\node[enebox, right=28mm of xiao] (scope) {\textbf{Oscilloscope}\\CH1};
+
+\draw[enearrow] (xiao.east) -- node[above, font=\footnotesize]{D10} (scope.west);
+\draw[enearrow] (xiao.south) .. controls +(down:7mm) and +(down:7mm) ..
+node[below, font=\footnotesize]{GND commun} (scope.south);
+\end{tikzpicture}
+\caption{Mesure GPIO : D10 observée au scope (niveau et fréquence).}
+\end{figure}
+
+\paragraph{\textbf{Schéma B — USB (logs) + Option alim externe}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (pc) {\textbf{PC}\\VS Code};
+\node[enebox, right=28mm of pc] (xiao) {\textbf{XIAO}\\USB};
+
+\draw[enearrow] (pc.east) -- node[above, small]{USB} (xiao.west);
+
+\node[enebox, below=18mm of xiao] (psu) {\textbf{Alim 3.3 V}\\(option)};
+\draw[enearrow] (psu.north) -- node[right, small]{3V3 + GND} (xiao.south);
+\end{tikzpicture}
+\caption{USB : logs sur PC. Option : alim externe 3.3 V (limite de courant).}
+\end{figure}
+
+\paragraph{\textbf{Réglages oscilloscope (GPIO)}}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Couplage & DC \\
+Vertical & 1 V/div \\
+Horizontal & 200 \textmu s/div \\
+Trigger & front montant sur CH1 \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{\textbf{Firmware test (1 kHz + log USB)}}
+\begin{lstlisting}[style=enehos,language=C++]
+#include <Arduino.h>
+
+void setup() {
+  pinMode(D10, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  digitalWrite(D10, HIGH);
+  delayMicroseconds(500);
+  digitalWrite(D10, LOW);
+  delayMicroseconds(500);
+
+  static uint32_t k = 0;
+  if ((k++ % 1000) == 0) Serial.println("XIAO: OK");
+}
+\end{lstlisting}
+
+\paragraph{\textbf{Attendu (mesure + calcul)}}
+\[
+T = 500\,\mu s + 500\,\mu s = 1\,ms
+\qquad \Rightarrow \qquad
+f = \frac{1}{T} = 1\,kHz
+\]
+\begin{itemize}
+  \item amplitude : \(\approx 0 \rightarrow 3.3\,V\)
+  \item fréquence : \(\approx 1\,kHz\) (tolérance à fixer)
+  \item log USB : ``XIAO: OK'' régulier
+\end{itemize}
+
+\subsubsection{\Large GNSS Quectel L86}
+\label{sec:test-gnss}
+
+\begin{tcolorbox}[colback=white,colframe=black!25,boxrule=0.6pt]
+\textbf{But (validation GNSS).} \quad On vérifie :
+\begin{itemize}
+  \item alimentation + consommation ;
+  \item UART : trames NMEA (9600 8N1) ;
+  \item PPS : impulsion ~1 Hz au scope ;
+  \item FIX : satellites / HDOP / temps d’acquisition.
+\end{itemize}
+\end{tcolorbox}
+
+\vspace{2mm}
+
+\paragraph{\textbf{Matériel minimal}}
+\begin{itemize}
+  \item L86 + antenne (selon ton montage)
+  \item XIAO nRF52840 (ou USB--UART 3.3 V)
+  \item Alimentation stabilisée
+  \item Oscilloscope (CH1/CH2)
+  \item PC + VS Code
+\end{itemize}
+
+\paragraph{\textbf{Schéma A — UART L86 \(\leftrightarrow\) XIAO \(\rightarrow\) PC}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  enearrow2/.style={Latex-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (l86) {\textbf{GNSS L86}};
+\node[enebox, right=5mm of l86] (xiao) {\textbf{XIAO}\\UART$\rightarrow$USB};
+\node[enebox, right=5mm of xiao] (pc) {\textbf{PC}\\VS Code};
+
+\draw[enearrow2] (l86.east) -- node[above, small]{TX / RX} (xiao.west);
+\draw[enearrow] (xiao.east) -- node[above, small]{USB} (pc.west);
+\end{tikzpicture}
+\caption{Chaîne de test NMEA : UART du GNSS vers PC.}
+\end{figure}
+
+\paragraph{\textbf{Schéma B — PPS vers oscilloscope (lisible)}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick}
+]
+\node[enebox] (l86) {\textbf{GNSS L86}};
+\node[enebox, right=28mm of l86] (scope) {\textbf{Oscilloscope}\\CH1};
+
+\draw[enearrow] (l86.east) -- node[above, font=\footnotesize]{PPS} (scope.west);
+\draw[enearrow] (l86.south) .. controls +(down:7mm) and +(down:7mm) ..
+node[below, font=\footnotesize]{GND commun} (scope.south);
+\end{tikzpicture}
+\caption{Mesure PPS : la flèche va du GNSS vers le scope (signal).}
+\end{figure}
+
+\paragraph{\textbf{Schéma C — Alimentation stabilisée}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (psu) {\textbf{Alim} 3.3 V};
+\node[enebox, right=26mm of psu] (l86) {\textbf{GNSS L86}};
+
+\draw[enearrow] (psu.east) -- node[above, small]{VCC} (l86.west);
+\draw[enearrow] (psu.south) .. controls +(down:7mm) and +(down:7mm) ..
+node[below, small]{GND} (l86.south);
+\end{tikzpicture}
+\caption{Alimentation : tension fixée + limite courant (sécurité).}
+\end{figure}
+
+\paragraph{\textbf{Réglages (alim + oscillo)}}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Alimentation & 3.30 V ; limite courant 300 mA (à ajuster ensuite) \\
+Oscillo UART (TX) & 1 V/div ; 100 \textmu s/div ; trigger sur f descendant(start bit) \\
+Oscillo PPS & 2 V/div ; 200 ms/div ; trigger front montant \\
+UART & 9600 bps ; 8N1 \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{\textbf{Firmware XIAO : passerelle UART \(\rightarrow\) USB}}
+\begin{lstlisting}[style=enehos,language=C++]
+#include <Arduino.h>
+
+void setup() {
+  Serial.begin(115200);  // USB
+  Serial1.begin(9600);   // GNSS (defaut)
+}
+
+void loop() {
+  while (Serial1.available()) {
+    Serial.write(Serial1.read());
+  }
+}
+\end{lstlisting}
+
+\paragraph{\textbf{Attendu (mesure + calcul)}}
+PPS :
+\[
+T_{\mathrm{PPS}} \approx 1\,s
+\qquad \Rightarrow \qquad
+f_{\mathrm{PPS}} \approx 1\,Hz
+\]
+\begin{itemize}
+  \item UART : trames NMEA visibles en continu (\$GxGGA, \$GxRMC, …)
+  \item PPS : impulsion stable (1 Hz)
+  \item FIX : satellites détectés (seuils à définir ensuite)
+\end{itemize}
+
+\subsubsection{\Large BNO085 (IMU 9 axes + magnétomètre + fusion)}
+\label{sec:test-imu}
+
+\begin{tcolorbox}[colback=white,colframe=black!25,boxrule=0.6pt]
+\textbf{But (validation BNO085 IMU+magneto+fusion).} \quad On vérifie :
+\begin{itemize}
+  \item alimentation + stabilité
+  \item bus I\textsuperscript{2}C : détection (ACK) + échanges stables
+  \item génération de données : accel/gyro/quaternion (cohérence simple)
+  \item (option) ligne INT : activité / fréquence d’interrupt
+\end{itemize}
+\end{tcolorbox}
+
+\vspace{2mm}
+
+\paragraph{\textbf{Matériel minimal}}
+\begin{itemize}
+  \item BNO085 (IMU 9 axes + magnétomètre + fusion) (breakout)
+  \item XIAO nRF52840
+  \item Alimentation (USB XIAO suffit souvent) + (option) alim externe 3.3 V
+  \item Oscilloscope (CH1/CH2)
+  \item PC + VS Code + PlatformIO
+\end{itemize}
+
+\paragraph{\textbf{Schéma A — I\textsuperscript{2}C BNO085 \(\rightarrow\) XIAO \(\rightarrow\) PC}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  enearrow2/.style={Latex-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (imu) {\textbf{BNO085}\\\textbf{IMU+magneto+fusion}};
+\node[enebox, right=10mm of imu] (xiao) {\textbf{XIAO}\\I\textsuperscript{2}C$\rightarrow$USB};
+\node[enebox, right=6mm of xiao] (pc) {\textbf{PC}\\VS Code};
+
+\draw[enearrow2] (imu.east) -- node[above, small]{SDA / SCL} (xiao.west);
+\draw[enearrow] (xiao.east) -- node[above, small]{USB} (pc.west);
+\end{tikzpicture}
+\caption{Chaîne de test BNO085 : I\textsuperscript{2}C vers XIAO, logs sur PC.}
+\end{figure}
+
+\paragraph{\textbf{Schéma B — Mesure I\textsuperscript{2}C au scope (SCL)}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=55mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (bus) {\textbf{Bus I\textsuperscript{2}C}\\(SCL/SDA)};
+\node[enebox, right=28mm of bus] (scope) {\textbf{Oscilloscope}\\CH1};
+
+\draw[enearrow] (bus.east) -- node[above, small]{SCL (ou SDA)} (scope.west);
+\end{tikzpicture}
+\caption{Mesure I\textsuperscript{2}C : vérifier niveaux et activité sur SCL/SDA.}
+\end{figure}
+
+\paragraph{\textbf{Réglages (alim + oscillo)}}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Alimentation & 3.3 V (ou via 3V3 XIAO) ; limite 200 mA (si alim externe) \\
+Oscillo I\textsuperscript{2}C & 1 V/div ; 10 \textmu s/div (à ajuster) ; trigger front montant \\
+I\textsuperscript{2}C (départ) & 100 kHz (mode debug) \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{\textbf{Firmware XIAO : scan I\textsuperscript{2}C + stream brut}}
+\begin{lstlisting}[style=enehos,language=C++]
+#include <Arduino.h>
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(); // SDA/SCL selon mapping XIAO
+  Wire.setClock(100000);
+  delay(200);
+
+  // Scan I2C simple
+  Serial.println("I2C scan:");
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("  found 0x");
+      Serial.println(a, HEX);
+    }
+  }
+}
+
+void loop() {
+  // placeholder : on remplacera par lecture BNO085 (SH-2 / lib)
+  delay(1000);
+}
+\end{lstlisting}
+
+\paragraph{\textbf{Attendu (mesure + calcul)}}
+\begin{itemize}
+  \item I\textsuperscript{2}C : au moins une adresse répond (ACK) (adresse exacte à confirmer selon configuration)
+  \item SCL/SDA : repos à \(\approx 3.3\,V\), transitions nettes, activité pendant les lectures
+  \item (suite) streaming BNO085 : fréquence d’échantillonnage définie + log stable (sera détaillé ensuite)
+\end{itemize}
+
+% =========================================================
+\subsubsection{\Large Antenne GNSS active}
+\label{sec:test-antenne}
+
+\begin{tcolorbox}[colback=white,colframe=black!25,boxrule=0.6pt]
+\textbf{But (comparatif antenne).} \quad On compare le GNSS :
+\begin{itemize}
+  \item sans antenne active / config A
+  \item avec antenne GNSS active / config B
+\end{itemize}
+L’objectif est d’obtenir une amélioration mesurable (satellites, HDOP, TTFF).
+\end{tcolorbox}
+
+\vspace{2mm}
+
+\paragraph{\textbf{Matériel minimal}}
+\begin{itemize}
+  \item GNSS L86 (même montage que le test GNSS)
+  \item Antenne GNSS active + câble/connexion RF du montage
+  \item XIAO (ou USB--UART) + PC
+  \item (Option) oscilloscope pour vérifier PPS identique en A/B
+\end{itemize}
+
+\paragraph{\textbf{Schéma A — A/B testing (même chaîne, antenne changée)}}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=50mm, minimum height=14mm, align=center, thick},
+  enearrow/.style={-Latex, thick},
+  small/.style={font=\footnotesize}
+]
+\node[enebox] (ant) {\textbf{Antenne}\\(A ou B)};
+\node[enebox, right=5mm of ant] (l86) {\textbf{GNSS L86}};
+\node[enebox, right=18mm of l86] (pc) {\textbf{PC}\\Logs};
+
+\draw[enearrow] (ant.east) -- node[above, small]{RF} (l86.west);
+\draw[enearrow] (l86.east) -- node[above, small]{UART/USB} (pc.west);
+\end{tikzpicture}
+\caption{Comparatif : seule l’antenne change, tout le reste est identique.}
+\end{figure}
+
+\paragraph{\textbf{Table de mesures A/B (à remplir)}}
+\begin{tabularx}{\linewidth}{@{}lXXXX@{}}
+\toprule
+\textbf{Config} & \textbf{TTFF (s)} & \textbf{Nb satellites} & \textbf{HDOP} & \textbf{Stabilité (dropouts)} \\
+\midrule
+A (référence) &  &  &  &  \\
+B (antenne active) &  &  &  &  \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{\textbf{Protocole comparatif}}
+\begin{itemize}
+  \item Conditions identiques : lieu, orientation, durée, alimentation
+  \item Lancer un log GNSS pendant une fenêtre de temps fixe (ex : 5 min)
+  \item Relever TTFF, satellites, HDOP, pertes de FIX
+\end{itemize}
+
+\paragraph{\textbf{Attendu (calculs)}}
+Amélioration relative (exemple pour TTFF) :
+\[
+\Delta_{\%} = 100 \times \frac{TTFF_A - TTFF_B}{TTFF_A}
+\]
+Même logique pour satellites (+) et HDOP (-).
+
+\subsection{Tests par liaison}
+\label{sec:tests-par-liaison}
+
+\begin{tcolorbox}[colback=white,colframe=black!25,boxrule=0.6pt]
+\textbf{Principe.} \quad Ici on ne teste plus un composant, on teste \textbf{une liaison} (un bus / un lien) :
+\begin{itemize}
+  \item \textbf{électrique} (niveaux 0/3.3 V, pull-ups, bruit, fronts),
+  \item \textbf{protocole} (baudrate UART, ACK I\textsuperscript{2}C, advertising BLE),
+  \item \textbf{performance} (débit, latence, pertes),
+  \item \textbf{robustesse} (débranche/rebranche, reset, stress 5 min).
+\end{itemize}
+Chaque test de liaison produit un verdict \textbf{PASS/FAIL} + des preuves (captures oscillo + logs).
+\end{tcolorbox}
+
+\vspace{2mm}
+
+% =========================================================
+\paragraph{\textbf{Résumé global des liaisons (nature + sens)}}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  x=1cm,y=1cm,
+  scale=0.90,
+  transform shape,
+  enebox/.style={draw=black!30, rounded corners=3mm, minimum width=3.4cm, minimum height=1.1cm, align=center, thick},
+  innerbox/.style={draw=black!35, rounded corners=2mm, minimum width=2.9cm, minimum height=0.9cm, align=center, fill=black!5},
+  enearrow/.style={-Latex, thick},
+  enearrow2/.style={Latex-Latex, thick},
+  small/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+\node[enebox, minimum width=10.4cm, minimum height=5.8cm] (elec) at (0,0) {};
+\node[font=\footnotesize\bfseries] at ($(elec.north)+(0,-0.35)$) {Boîtier électronique unique (nuque)};
+\node[innerbox] (xiao) at (0.0,1.15) {\textbf{XIAO nRF52840}};
+\node[innerbox] (l86) at (-3.1,-1.05) {\textbf{GNSS L86}};
+\node[innerbox, minimum width=4.0cm] (bno) at (2.8,-1.05) {\textbf{BNO085}\\(IMU+magneto+fusion)};
+
+\node[enebox] (phone) at (9.3,0.85) {\textbf{Smartphone}\\App ENEHOS};
+\node[enebox] (ant) at (-4.3,4.3) {\textbf{Boîtier antenne}};
+\node[enebox] (bat) at (-6.3,-5.3) {\textbf{Boîtier piles AAA}};
+\node[enebox, minimum width=3.0cm] (drv) at (6.2,-5.3) {\textbf{Driver}\\vibreurs};
+\node[enebox] (vibG) at (4.3,-8.0) {\textbf{Vibreur gauche}};
+\node[enebox] (vibD) at (8.1,-8.0) {\textbf{Vibreur droit}};
+
+% BLE unique, deux flux navette
+\draw[enearrow2] ($(elec.east)+(0,0.25)$) -- node[small, above]{BLE bidirectionnel} ($(phone.west)+(0,0.25)$);
+\node[small] at ($(elec.east)!0.5!(phone.west)+(0,0.62)$) {Navette MESURES};
+\node[small] at ($(elec.east)!0.5!(phone.west)+(0,-0.12)$) {Navette VIBRATIONS};
+
+% Liaisons internes boîtier électronique
+\draw[enearrow2] (l86.north east) -- node[small, above, sloped]{UART TX/RX} (xiao.south west);
+\draw[enearrow] (l86.west) -- ++(-0.9,0) |- node[small, left, pos=0.25]{PPS (1 Hz)} (xiao.west);
+\draw[enearrow2] (bno.north west) -- node[small, above, sloped]{I\textsuperscript{2}C (+ INT/RST)} (xiao.south east);
+
+% Liaisons périphériques
+\draw[enearrow] (ant.south) -- node[small, left]{RF coax} (l86.north);
+\draw[enearrow] (bat.east) -- node[small, above]{Alimentation} ($(elec.south)+(-2.6,0)$);
+\draw[enearrow] ($(elec.south east)+(0.1,0.2)$) -- node[small, above]{GPIO/PWM} (drv.north west);
+\draw[enearrow] (drv.south west) -- node[small, above, sloped]{canal G} (vibG.north);
+\draw[enearrow] (drv.south east) -- node[small, above, sloped]{canal D} (vibD.north);
+
+\end{tikzpicture}
+\caption{Vue synthétique cible : boîtier électronique unique avec L86+BNO085 internes, navettes BLE bidirectionnelles, UART TX/RX, I\textsuperscript{2}C et PPS.}
+\end{figure}
+
+\vspace{2mm}
+
+% =========================================================
+\paragraph{\textbf{Table récapitulative des liaisons}}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.2cm}
+                                >{\raggedright\arraybackslash}p{2.5cm}
+                                >{\raggedright\arraybackslash}p{2cm}
+                                X}
+\toprule
+\textbf{Liaison} & \textbf{Nature} & \textbf{Niveau} & \textbf{Rôle} \\
+\midrule
+UART & filaire numérique série & TTL 3.3 V & GNSS L86 \(\leftrightarrow\) XIAO (TX/RX, trames NMEA) \\
+PPS & impulsion numérique & 3.3 V & Synchronisation temporelle 1 Hz \\
+I\textsuperscript{2}C & bus 2 fils (SDA/SCL) & 3.3 V + pull-ups & BNO085 (IMU+magneto+fusion) \(\leftrightarrow\) XIAO \\
+BLE (bidirectionnel) & radio 2.4 GHz & N/A & Transport des navettes : mesures \(\leftrightarrow\) commandes \\
+RF GNSS & radio L1 + coax & N/A & Boîtier antenne \(\rightarrow\) L86 \\
+Commande vibreurs & sorties GPIO/PWM + driver & 3.3 V (pilotage driver) & XIAO \(\rightarrow\) vibreur gauche/droit \\
+Alimentation & filaire puissance & selon design (AAA) & Boîtier piles AAA \(\rightarrow\) boîtier électronique \\
+\bottomrule
+\end{tabularx}
+
+\end{table}
+\vspace{4mm}
+
+% =========================================================
+\paragraph{\textbf{Rappel des broches utilisées (boîtier électronique unique ENEHOS)}}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}
+                                >{\raggedright\arraybackslash}p{2cm}
+                                >{\raggedright\arraybackslash}p{2cm}
+                                X}
+\toprule
+\textbf{Sous-système (nuque)} & \textbf{Signal} & \textbf{Broche XIAO} & \textbf{Commentaire} \\
+\midrule
+GNSS L86 & TX → RX & D7 (RX) & UART GNSS vers XIAO \\
+GNSS L86 & RX ← TX & D6 (TX) & UART XIAO vers GNSS \\
+GNSS L86 & PPS & D2 & Impulsion 1 Hz \\
+GNSS L86 & RST & D3 & Reset GNSS \\
+GNSS L86 & F-ON & D0 (option) & Activation module \\
+BNO085 (IMU+magneto+fusion) & SDA & D4 (SDA) & Bus I\textsuperscript{2}C \\
+BNO085 (IMU+magneto+fusion) & SCL & D5 (SCL) & Bus I\textsuperscript{2}C \\
+BNO085 (IMU+magneto+fusion) & \texttt{!INT} & D9 & Interruption capteur \\
+BNO085 (IMU+magneto+fusion) & \texttt{!RST} & D8 & Reset capteur \\
+Driver vibreur gauche & CMD\_L & GPIO/PWM libre (\`a affecter) & Commande moteur gauche \\
+Driver vibreur droit & CMD\_R & GPIO/PWM libre (\`a affecter) & Commande moteur droit \\
+\bottomrule
+\end{tabularx}
+
+\end{table}
+
+\vspace{4mm}
+
+% =========================================================
+\paragraph{\textbf{Règle d’or (diagnostic rapide)}}
+\begin{itemize}
+  \item Si \textbf{UART} ne sort rien : vérifier TX/RX inversés, GND commun, baudrate, niveaux 3.3 V.
+  \item Si \textbf{I\textsuperscript{2}C} ne répond pas : vérifier pull-ups, SDA/SCL inversés, bus bloqué (SDA low).
+  \item Si \textbf{BLE} est instable : vérifier distance, alimentation, fréquence de notifications trop élevée.
+  \item Si \textbf{PPS} absent : pas de FIX ou PPS pas câblé/configuré.
+\end{itemize}
+
+\subsubsection{\Large UART — Liaison GNSS L86 ↔ XIAO}
+\label{sec:test-uart}
+
+\paragraph{\textbf{1. Nature électrique}}
+
+\begin{itemize}
+\item Type : UART asynchrone (8N1)
+\item Niveau : CMOS / TTL 3.3 V
+\item Pas de RS232 direct (interdit sans level shifter)
+\item Baudrate par défaut L86 : 9600 bps :contentReference[oaicite:2]{index=2}
+\end{itemize}
+
+\paragraph{\textbf{2. Brochage exact prototype ENEHOS}}
+
+\begin{tabular}{ll}
+TX L86 (pin 2) & → D7 (RX XIAO) \\
+RX L86 (pin 1) & ← D6 (TX XIAO) \\
+GND & ↔ GND commun \\
+VCC L86 & 3.3 V stable \\
+PPS (option) & → D2 \\
+RST (option) & → D3 \\
+F-ON (option) & → D0 \\
+\end{tabular}
+
+\paragraph{\textbf{3. Stack VS Code}}
+
+\begin{itemize}
+\item VS Code
+\item PlatformIO
+\item Board : seeed_xiao_nrf52840
+\item Serial Monitor : 115200 bps
+\end{itemize}
+
+\begin{lstlisting}[style=enehos,language=C++]
+#include <Arduino.h>
+
+void setup() {
+  Serial.begin(115200);   // USB debug
+  Serial1.begin(9600);    // GNSS L86
+}
+
+void loop() {
+  while (Serial1.available()) {
+    Serial.write(Serial1.read());
+  }
+}
+\end{lstlisting}
+
+\paragraph{\textbf{4. Réglages oscilloscope (diagnostic électrique)}}
+
+\begin{itemize}
+\item Sonde CH1 sur TX L86
+\item GND commun
+\item 1 V/div
+\item 100 µs/div
+\item Trigger front descendant (start bit)
+\end{itemize}
+
+Fréquence bit attendue :
+
+\[
+T_{bit} = \frac{1}{9600} = 104\,\mu s
+\]
+
+\paragraph{\textbf{5. Résultats attendus}}
+
+\begin{itemize}
+\item Trames NMEA visibles :
+\texttt{\$GxGGA}, \texttt{\$GxRMC}, etc.
+\item Pas de caractères corrompus
+\item Niveaux logiques : 0V / 3.3V
+\item Débit stable
+\end{itemize}
+
+\paragraph{\textbf{6. Test robustesse}}
+
+\begin{itemize}
+\item Débrancher RX → aucune donnée
+\item Inverser TX/RX → aucune trame
+\item Modifier baudrate → trames illisibles
+\end{itemize}
+
+PASS si trames continues 5 min sans erreur.
+
+\subsubsection{\Large I\textsuperscript{2}C — Liaison BNO085 (IMU+magneto+fusion) ↔ XIAO}
+\label{sec:test-i2c}
+
+\paragraph{\textbf{1. Nature électrique}}
+
+\begin{itemize}
+\item Bus maître-esclave
+\item Lignes : SDA / SCL
+\item Niveau : 3.3 V
+\item Open-drain + résistances pull-up
+\end{itemize}
+
+\paragraph{\textbf{2. Brochage prototype ENEHOS}}
+
+\begin{tabular}{ll}
+SDA BNO085 & → D4 (SDA) \\
+SCL BNO085 & → D5 (SCL) \\
+!INT & → D9 \\
+!RST & → D8 \\
+VIN & → 3V3 \\
+GND & → GND \\
+\end{tabular}
+
+\paragraph{\textbf{3. Stack VS Code}}
+
+\begin{lstlisting}[style=enehos,language=C++]
+#include <Arduino.h>
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(100000);
+  delay(200);
+
+  Serial.println("Scan I2C");
+  for(uint8_t addr=1; addr<127; addr++){
+    Wire.beginTransmission(addr);
+    if(Wire.endTransmission()==0){
+      Serial.print("Found: 0x");
+      Serial.println(addr,HEX);
+    }
+  }
+}
+
+void loop(){}
+\end{lstlisting}
+
+\paragraph{\textbf{4. Oscilloscope}}
+
+\begin{itemize}
+\item CH1 : SCL
+\item CH2 : SDA
+\item 1 V/div
+\item 10 µs/div
+\item Trigger sur SCL
+\end{itemize}
+
+\paragraph{\textbf{5. Attendu}}
+
+\begin{itemize}
+\item SDA et SCL au repos : 3.3 V
+\item Pulses propres
+\item ACK visible après adresse
+\item Adresse BNO085 détectée
+\end{itemize}
+
+\paragraph{\textbf{6. Tests erreurs}}
+
+\begin{itemize}
+\item SDA bloqué à 0 → bus stuck
+\item Pull-ups absentes → fronts lents
+\item Clock trop élevé → pertes ACK
+\end{itemize}
+
+PASS si scan stable + données orientation continues.
+
+
+\subsubsection{\Large BLE — Liaison XIAO ↔ Smartphone (navettes)}
+\label{sec:test-ble}
+
+\paragraph{\textbf{1. Nature}}
+
+\begin{itemize}
+\item Radio 2.4 GHz (Bluetooth Low Energy)
+\item \textbf{Un seul lien BLE bidirectionnel}
+\item \textbf{Deux flux applicatifs} : navette mesures et navette commande vibrations
+\end{itemize}
+
+\paragraph{\textbf{2. Architecture logique ENEHOS}}
+
+\begin{itemize}
+\item Service UUID : ENEHOS (à figer)
+\item Characteristic Notify : \textbf{navette mesures horodatée} (boîtier \(\rightarrow\) smartphone)
+\item Characteristic Write : \textbf{navette commande vibrations} (smartphone \(\rightarrow\) boîtier)
+\item Les deux flux existent sur le même BLE (ce ne sont pas deux BLE capteurs séparés)
+\end{itemize}
+
+\paragraph{\textbf{3. Stack VS Code}}
+
+\begin{itemize}
+\item ArduinoBLE library
+\item PlatformIO
+\end{itemize}
+
+\begin{lstlisting}[style=enehos,language=C++]
+#include <ArduinoBLE.h>
+
+BLEService enehosService("180A");
+BLECharacteristic navetteMesuresChar("2A57", BLENotify, 80);
+BLECharacteristic navetteCmdChar("2A58", BLEWrite | BLEWriteWithoutResponse, 80);
+
+const char navetteMesures[] =
+  "ts=2026-02-16T10:00:00Z;gnss=fix,lat,lon,spd;imu=yaw,pitch,roll;status=ok";
+
+void setup() {
+  Serial.begin(115200);
+  BLE.begin();
+  BLE.setLocalName("ENEHOS_NECK");
+  BLE.setAdvertisedService(enehosService);
+  enehosService.addCharacteristic(navetteMesuresChar);
+  enehosService.addCharacteristic(navetteCmdChar);
+  BLE.addService(enehosService);
+  BLE.advertise();
+}
+
+void loop() {
+  BLEDevice central = BLE.central();
+  if (central) {
+    while (central.connected()) {
+      navetteMesuresChar.writeValue(
+        (const uint8_t*)navetteMesures, sizeof(navetteMesures) - 1
+      );
+
+      if (navetteCmdChar.written()) {
+        uint8_t cmdBuf[80];
+        int n = navetteCmdChar.valueLength();
+        navetteCmdChar.readValue(cmdBuf, n);
+        // parser navette commande vibrations : gauche/droite, type, duree
+      }
+
+      delay(100); // exemple: 10 Hz
+    }
+  }
+}
+\end{lstlisting}
+
+\paragraph{\textbf{4. Tests}}
+
+\begin{itemize}
+\item Scan smartphone → device visible
+\item Connexion < 3 s
+\item Notifications "navette mesures" reçues à la cadence attendue
+\item Commandes "navette vibrations" correctement reçues côté boîtier
+\item Perte connexion test (distance)
+\end{itemize}
+
+\paragraph{\textbf{5. Mesures}}
+
+\begin{itemize}
+\item RSSI
+\item Latence aller (mesures) / retour (commandes)
+\item Taux perte paquets
+\item Gigue de périodicité des navettes
+\item Stabilité 10 min
+\end{itemize}
+
+\paragraph{\textbf{6. Critère PASS}}
+
+\begin{itemize}
+\item Connexion stable
+\item Navette mesures continue (pas de trou bloquant)
+\item Navette commande vibrations exécutée sans ambiguïté
+\item Pas de freeze
+\item Pas de reboot XIAO
+\end{itemize}
+
+% =========================================================
+\section{Estimation de charge (pour planning)}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{6.2cm}
+                                >{\raggedright\arraybackslash}p{2.2cm}
+                                X}
+\toprule
+\textbf{Lot} & \textbf{Charge} & \textbf{Commentaire} \\
+\midrule
+Navette : format + horodatage & 8 h & Spécification payload, option A/B, versionnement navette \\
+BLE : TX mesures + RX commandes & 10 h & Service/characteristics, bufferisation, erreurs de transport \\
+Intégration GNSS & 6 h & Trames, qualité fix, cohérence horodatage \\
+Intégration BNO085 (IMU+magneto+fusion) & 8 h & Orientation fusionnée, fréquence, vérifications de cohérence \\
+Driver vibreurs & 6 h & Mapping commandes, sécurité activation, tests GPIO/PWM \\
+Tests terrain + logs + validation & 12 h & Scénarios dynamiques, collecte traces, validation critères \\
+Documentation + mise en page & 4 h & Mise à jour du document, schémas, versionnage \\
+\bottomrule
+\end{tabularx}
+\end{table}
+% =========================================================
+\section{Annexes (captures oscillo, logs, photos)}
+% Tu ajouteras ici les captures d’oscillo, screenshots de logs, etc.
+
+\end{document}
